@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "baseUrl": "./src",
+        "target": "es2017",
+        "module": "commonjs",
+        "outDir": "dist/",
+        "types": [
+            //add node as option
+            "node"
+        ],
+        "typeRoots": ["./node_modules/@types"]
+        ,"paths": {
+			"*": [
+				"typings/*"
+			]
+		}
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
+}
