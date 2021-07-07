@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const moment = require("moment");
 const child_process_1 = require("child_process");
+const path = require("path");
 const aziotmqtt = require("azure-iot-device-mqtt");
 const aziotprovisioningdevicemqtt = require("azure-iot-provisioning-device-mqtt");
 const aziotdevice = require("azure-iot-device");
@@ -16,7 +17,7 @@ const ConnectionString = aziotcommon.ConnectionString;
 const SymmetricKeySecurityClient = aziotsecuritysymmetrickey.SymmetricKeySecurityClient;
 const ProvisioningDeviceClient = aziotprovisioningdevice.ProvisioningDeviceClient;
 /*Device DTDL id*/
-const modelIdObject = { modelId: 'dtmi:Redeye:redeye_1_plus;1' };
+const modelIdObject = { modelId: 'dtmi:Redeye:redeye_1_plus;2' };
 const messageSubjectProperty = '$.sub';
 const deviceInfoComponentName = 'deviceInformation';
 const commandGetCurrentConnectionStatus = 'getCurrentConnectionStatus';
@@ -139,7 +140,7 @@ function reboot() {
 }
 function commandSetStartScanningHandler() {
     return new Promise((resolve, rejects) => {
-        child_process_1.exec('node /home/redeye/dist/WiFi.js', (error, stdout, stderr) => {
+        child_process_1.exec('node ' + path.join(__dirname, './WiFi.js'), (error, stdout, stderr) => {
             if (error) {
                 console.error(`error: ${error}`);
                 rejects(false);
@@ -203,8 +204,8 @@ class Azure_IoT_Device {
             try {
                 resultTwin = await this.azureClient.getTwin();
                 // Only report readable properties
-                const patchTestResultProperty = helperCreateReportedPropertiesPatch({ testResult: this.lastTestResult }, null);
-                const patchLastTestResultSpectrum = helperCreateReportedPropertiesPatch({ lastTestResultSpectrum: this.lastTestResultSpectrum }, null);
+                // const patchTestResultProperty = helperCreateReportedPropertiesPatch({ testResult: this.lastTestResult }, null);
+                // const patchLastTestResultSpectrum = helperCreateReportedPropertiesPatch({ lastTestResultSpectrum: this.lastTestResultSpectrum }, null);
                 const patchGetCurrentConnectionStatus = helperCreateReportedPropertiesPatch({ getCurrentConnectionStatus: this.isConnected }, null);
                 const patchDeviceInfo = helperCreateReportedPropertiesPatch({
                     manufacturer: 'Taiwan RedEye Biomedical Inc.',
@@ -212,8 +213,8 @@ class Azure_IoT_Device {
                     swVersion: '1.00',
                 }, deviceInfoComponentName);
                 // the below things can only happen once the twin is there
-                updateComponentReportedProperties(resultTwin, patchTestResultProperty, null);
-                updateComponentReportedProperties(resultTwin, patchLastTestResultSpectrum, null);
+                // updateComponentReportedProperties(resultTwin, patchTestResultProperty, null);
+                // updateComponentReportedProperties(resultTwin, patchLastTestResultSpectrum, null);
                 updateComponentReportedProperties(resultTwin, patchGetCurrentConnectionStatus, null);
                 // desiredPropertyPatchListener(resultTwin, [redeye1ComponentName, deviceInfoComponentName]);
             }
@@ -271,8 +272,8 @@ class Azure_IoT_Device {
                 break;
             }
             case commandNameReboot: {
-                let isRebooted = await reboot();
-                await sendCommandResponse(request, response, 200, isRebooted.toString());
+                await sendCommandResponse(request, response, 200, 'true');
+                await reboot();
                 break;
             }
             default:
