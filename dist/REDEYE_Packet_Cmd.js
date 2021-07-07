@@ -11,6 +11,7 @@ var Cmd;
     Cmd[Cmd["PACKET_NEW_DATA"] = 134] = "PACKET_NEW_DATA";
     Cmd[Cmd["PACKET_OTA_INFO"] = 135] = "PACKET_OTA_INFO";
     Cmd[Cmd["PACKET_OTA_SLICE"] = 136] = "PACKET_OTA_SLICE";
+    Cmd[Cmd["PACKET_SYNC_TIME"] = 137] = "PACKET_SYNC_TIME";
     Cmd[Cmd["PACKET_RAW_DATA"] = 144] = "PACKET_RAW_DATA";
     Cmd[Cmd["ARRIVAL_RAW_DATA"] = 145] = "ARRIVAL_RAW_DATA";
 })(Cmd = exports.Cmd || (exports.Cmd = {}));

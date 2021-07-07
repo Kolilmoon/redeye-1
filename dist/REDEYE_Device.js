@@ -2,25 +2,39 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const net = require("net");
 const moment = require("moment");
-const systeminformation = require("systeminformation");
+const pcap = require("pcap");
+const fs = require("fs");
+const path = require("path");
+const azure_iot_device_1 = require("azure-iot-device");
 const REDEYE_Packet_1 = require("./REDEYE_Packet");
 const REDEYE_Record_Data_1 = require("./REDEYE_Record_Data");
-const REDEYE_Raw_Data_1 = require("./REDEYE_Raw_Data");
+const REDEYE_New_Data_1 = require("./REDEYE_New_Data");
 const REDEYE_Packet_Cmd_1 = require("./REDEYE_Packet_Cmd");
-const WiFi_1 = require("./WiFi");
-class REDEYE_Device extends WiFi_1.WiFi {
-    constructor() {
-        super();
+const Azure_IoT_Device_1 = require("./Azure_IoT_Device");
+const tcp_tracker = new pcap.TCPTracker();
+const pcap_session = pcap.createSession('wlan0', { filter: "ip proto \\tcp" });
+const testResultspectrum = 'testResultspectrum';
+const testResult = 'testResult';
+class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
+    constructor(config) {
+        super(config);
         this.packet_byte_array = new Uint8Array();
         this.packet_verify = new Uint8Array();
         this.mStream_Size = 0;
         this.mData_Chunks = 0;
         this.mCurrent_cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_UNKNOWN;
-        systeminformation.wifiConnections(info => {
-            if (device.isValidSSID(info[0].ssid)) {
-                device.initPCAP();
-                device.initSocket();
-            }
+    }
+    initPCAP() {
+        tcp_tracker.on('session', session => {
+            console.log("Start of session between " + session.src_name + " and " + session.dst_name);
+            session.on('end', session => {
+                console.log(moment().format() + ": End of TCP session between " + session.src_name + " and " + session.dst_name);
+            });
+        });
+        pcap_session.on('packet', raw_packet => {
+            let packet = pcap.decode.packet(raw_packet);
+            tcp_tracker.track_packet(packet);
+            console.log(moment().format() + ":  Packet route:" + packet.payload.payload);
         });
     }
     initSocket() {
@@ -31,6 +45,7 @@ class REDEYE_Device extends WiFi_1.WiFi {
             let currentSavedLength = 0;
             let currentSavedChunk = 0;
             socket.on('data', data => {
+                // this.isConnected = true;
                 console.log('-----------------------------------------recv data-----------------------------------------');
                 let packet = new REDEYE_Packet_1.REDEYE_Packet(data, this.mCurrent_cmd);
                 if ((this.mCurrent_cmd == REDEYE_Packet_Cmd_1.Cmd.ARRIVAL_HISTORY_DATA || this.mCurrent_cmd == REDEYE_Packet_Cmd_1.Cmd.ARRIVAL_RAW_DATA) && received.length == 0) {
@@ -77,6 +92,7 @@ class REDEYE_Device extends WiFi_1.WiFi {
                 }
             });
             socket.on('end', function () {
+                this.isConnected = false;
                 console.log(moment().format() + ' socket從客戶端被關閉了');
             });
         });
@@ -84,7 +100,7 @@ class REDEYE_Device extends WiFi_1.WiFi {
     }
     async handleMessage(packet) {
         this.packet_byte_array = new Uint8Array();
-        console.log("packet.packet_array: " + JSON.stringify(packet));
+        // console.log("packet.packet_array: " + JSON.stringify(packet))
         console.log("type: " + REDEYE_Packet_Cmd_1.Cmd[packet.cmd]);
         switch (packet.cmd) {
             case REDEYE_Packet_Cmd_1.Cmd.PACKET_HELLO_ACK:
@@ -131,10 +147,17 @@ class REDEYE_Device extends WiFi_1.WiFi {
                         recordData.create_datetime = tm_year + "-" + tm_month + "-" + tm_day + " " + tm_hour + ":" + tm_min + ":" + tm_sec;
                         recordList.push(recordData);
                     }
-                    console.log(JSON.stringify(recordList));
+                    try {
+                        console.log(JSON.stringify(recordList));
+                        let message = new azure_iot_device_1.Message(JSON.stringify(recordList));
+                        // this.messageSender(message);
+                    }
+                    catch (err) {
+                        console.log(err);
+                    }
                 })
                     .catch(reject => {
-                    console.log(moment().format() + "stream: ARRIVAL_HISTORY_DATA invalid.");
+                    console.log(moment().format() + " stream: ARRIVAL_HISTORY_DATA invalid.");
                 });
                 this.packet_verify = await packet.StreamVerifyAck();
                 this.mCurrent_cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_UNKNOWN;
@@ -142,9 +165,13 @@ class REDEYE_Device extends WiFi_1.WiFi {
                 this.mData_Chunks = 0;
                 this.sender.write(this.packet_verify);
                 break;
+            case REDEYE_Packet_Cmd_1.Cmd.PACKET_SYNC_TIME:
+                this.packet_verify = await packet.StreamVerifyAck();
+                this.sender.write(this.packet_verify);
+                break;
             case REDEYE_Packet_Cmd_1.Cmd.PACKET_NEW_DATA:
                 let head, tm_year, tm_month, tm_day, tm_hour, tm_min, tm_sec, value;
-                let recordData = new REDEYE_Record_Data_1.REDEYE_Record_Data();
+                this.packet_New_Data = new REDEYE_New_Data_1.REDEYE_New_Data();
                 this.packet_byte_array = packet.packet_array;
                 let currectNum = 24;
                 tm_sec = Buffer.from(packet.packet_array.slice(currectNum, currectNum + 4)).readIntLE(0, 4);
@@ -161,9 +188,11 @@ class REDEYE_Device extends WiFi_1.WiFi {
                 currectNum += 4;
                 value = Buffer.from(packet.packet_array.slice(currectNum, currectNum + 4)).readIntLE(0, 4);
                 currectNum += 4;
-                recordData.data_value = value.toString();
-                recordData.create_datetime = tm_year + "-" + tm_month + "-" + tm_day + " " + tm_hour + ":" + tm_min + ":" + tm_sec;
-                console.log(JSON.stringify(recordData));
+                this.packet_New_Data.data_value = value.toString();
+                this.packet_New_Data.create_datetime = moment().format().replace(/T/, ' ').replace(/\..+/, '');
+                console.log(JSON.stringify(this.packet_New_Data));
+                this.lastTestResult = value;
+                this.sendTelemetry(this.azureClient, value.toString(), 0, testResult).catch((err) => console.log('error ', err.toString()));
                 this.sender.write(this.packet_byte_array);
                 break;
             case REDEYE_Packet_Cmd_1.Cmd.PACKET_RAW_DATA:
@@ -175,33 +204,39 @@ class REDEYE_Device extends WiFi_1.WiFi {
             case REDEYE_Packet_Cmd_1.Cmd.ARRIVAL_RAW_DATA:
                 packet.isRawDataValid(packet.packet_array)
                     .then(resolve => {
-                    let head, tail, i, wavelength, blank, sample;
+                    let wavelength, blank, sample;
                     let rawList = new Array();
-                    let currectNum1 = 16;
-                    let currectNum2 = 336;
-                    let currectNum3 = 656;
-                    head = 0;
-                    tail = 40;
-                    console.log('head: ' + head);
-                    console.log('tail: ' + tail);
-                    for (i = head; i < tail; i++) {
-                        let rawData = new REDEYE_Raw_Data_1.REDEYE_Raw_Data();
-                        wavelength = parseFloat(Buffer.from(packet.packet_array.slice(currectNum1, currectNum1 + 8)).readDoubleLE().toFixed(6));
-                        currectNum1 += 8;
-                        blank = parseFloat(getFloat(packet.packet_array.slice(currectNum2, currectNum2 + 8)).toFixed(6));
-                        console.log("blanK: " + getFloat(packet.packet_array.slice(currectNum2, currectNum2 + 8)).toFixed(6));
-                        currectNum2 += 8;
-                        sample = parseFloat(Buffer.from(packet.packet_array.slice(currectNum3, currectNum3 + 8)).readDoubleLE().toFixed(6));
-                        currectNum3 += 8;
+                    for (let i = 0; i < 40; i++) {
+                        let rawData = new REDEYE_New_Data_1.REDEYE_Raw_Data();
+                        console.log("round " + i.toString() + ",wavelength raw: " + Buffer.from(packet.packet_array.slice(16 + 8 * i, 16 + 8 * i + 8)).toString('hex'));
+                        console.log("round " + i.toString() + ",blank      raw: " + Buffer.from(packet.packet_array.slice(16 + 8 * i + 320, 16 + 8 * i + 8 + 320)).toString('hex'));
+                        console.log("round " + i.toString() + ",sample     raw: " + Buffer.from(packet.packet_array.slice(16 + 8 * i + 640, 16 + 8 * i + 8 + 640)).toString('hex'));
+                        wavelength = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i, 16 + 8 * i + 8)).readDoubleLE(0).toFixed(6));
+                        blank = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i + 320, 16 + 8 * i + 8 + 320)).readDoubleLE(0).toFixed(6));
+                        sample = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i + 640, 16 + 8 * i + 8 + 640)).readDoubleLE(0).toFixed(6));
                         rawData.wavelength = wavelength;
                         rawData.blank = blank;
                         rawData.sample = sample;
                         rawList.push(rawData);
                     }
-                    console.log(JSON.stringify(rawList));
+                    // console.log(JSON.stringify(rawList));
+                    try {
+                        this.packet_New_Data.spectrum = rawList;
+                        // this.lastTestResultSpectrum = JSON.stringify(this.packet_New_Data);
+                        console.log(JSON.stringify(this.packet_New_Data));
+                        let message = new azure_iot_device_1.Message(JSON.stringify(this.packet_New_Data));
+                        let index = 0;
+                        rawList.forEach(element => {
+                            this.sendTelemetry(this.azureClient, JSON.stringify(element), index, testResultspectrum).catch((err) => console.log('error ', err.toString()));
+                            index = index + 1;
+                        });
+                    }
+                    catch (err) {
+                        console.log(err);
+                    }
                 })
                     .catch(reject => {
-                    console.log(moment().format() + "stream: PACKET_RAW_DATA invalid.");
+                    console.log(moment().format() + " stream: PACKET_RAW_DATA invalid.");
                 });
                 this.mCurrent_cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_UNKNOWN;
                 this.mStream_Size = 0;
@@ -211,12 +246,23 @@ class REDEYE_Device extends WiFi_1.WiFi {
     }
 }
 exports.REDEYE_Device = REDEYE_Device;
-function getFloat(array) {
-    var view = new DataView(new ArrayBuffer(8));
-    array.forEach(function (b, i) {
-        view.setUint8(i, b);
-    });
-    return view.getFloat64(0);
+function getFloat(data) {
+    return new DataView(data.buffer).getFloat64(0);
 }
-let device = new REDEYE_Device();
-device;
+let config;
+fs.readFile(path.join(__dirname, '../config.json'), 'utf-8', (error, data) => {
+    if (error) {
+        console.log('read error ' + error);
+        process.exit(0);
+    }
+    else {
+        config = JSON.parse(data);
+        console.log('read success.');
+    }
+});
+setTimeout(() => {
+    let redeyeDevice = new REDEYE_Device(config);
+    setTimeout(() => {
+        redeyeDevice.initSocket();
+    }, 500);
+}, 3000);

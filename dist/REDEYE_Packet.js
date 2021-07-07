@@ -7,7 +7,7 @@ class REDEYE_Packet {
     constructor(data, currentCmd) {
         this.md5sum = crypto.createHash('md5');
         this.cmd = currentCmd;
-        console.info("packet info: " + data.toString('hex'));
+        // console.info("packet info: " + data.toString('hex'));
         this.isValidePacket(data)
             .then(resolve => {
             console.log(' isValid packet. Type: ' + REDEYE_Packet_Cmd_1.Cmd[this.cmd]);
@@ -19,30 +19,48 @@ class REDEYE_Packet {
     StreamVerifyAck() {
         this.md5sum = crypto.createHash('md5');
         return new Promise((resolve, reject) => {
-            if (this.cmd == REDEYE_Packet_Cmd_1.Cmd.ARRIVAL_HISTORY_DATA) {
-                try {
-                    let packet_buf = new Uint8Array(40);
-                    let packet_verify = new Uint8Array(40);
+            let packet_buf;
+            let packet_verify;
+            let arr;
+            switch (this.cmd) {
+                case REDEYE_Packet_Cmd_1.Cmd.ARRIVAL_HISTORY_DATA:
+                    packet_buf = new Uint8Array(40);
+                    packet_verify = new Uint8Array(40);
                     packet_buf.set([parseInt(REDEYE_Packet_Cmd_1.Cmd.PACKET_VERIFY_DATA.toString(16))], 0);
                     packet_buf.set([40], 4);
                     packet_verify = packet_buf;
                     packet_verify.set(this.stream_md5sum_digits.slice(0, 16), 24);
-                    let arr = new Uint8Array(packet_verify.slice(0, 8).length + packet_verify.slice(24, 40).length);
+                    arr = new Uint8Array(packet_verify.slice(0, 8).length + packet_verify.slice(24, 40).length);
                     arr.set(packet_verify.slice(0, 8));
                     arr.set(packet_verify.slice(24, 40), packet_verify.slice(0, 8).length);
                     this.md5sum.update(arr);
                     this.md5sum_digits_check = Uint8Array.from(this.md5sum.digest());
                     packet_verify.set(arr.slice(0, 16), 8);
                     resolve(packet_verify);
-                }
-                catch (err) {
-                    console.log(moment().format() + ' not Valid StreamVerifyAck.');
+                    break;
+                case REDEYE_Packet_Cmd_1.Cmd.PACKET_SYNC_TIME:
+                    packet_buf = new Uint8Array(40);
+                    packet_verify = new Uint8Array(40);
+                    packet_buf.set([parseInt(REDEYE_Packet_Cmd_1.Cmd.PACKET_SYNC_TIME.toString(16))], 0);
+                    packet_buf.set([48], 4);
+                    packet_buf.set([moment().second()], 8);
+                    packet_buf.set([moment().minute()], 12);
+                    packet_buf.set([moment().hour()], 16);
+                    packet_buf.set([moment().daysInMonth()], 20);
+                    packet_buf.set([moment().month()], 24);
+                    packet_buf.set([moment().year()], 28);
+                    packet_verify = packet_buf;
+                    packet_verify.set(this.stream_md5sum_digits.slice(0, 16), 24);
+                    arr = new Uint8Array(packet_verify.slice(0, 8).length + packet_verify.slice(24, 40).length);
+                    arr.set(packet_verify.slice(0, 8));
+                    arr.set(packet_verify.slice(24, 40), packet_verify.slice(0, 8).length);
+                    this.md5sum.update(arr);
+                    this.md5sum_digits_check = Uint8Array.from(this.md5sum.digest());
+                    packet_verify.set(arr.slice(0, 16), 8);
+                    resolve(packet_verify);
+                    break;
+                default:
                     reject();
-                }
-            }
-            else {
-                console.log(moment().format() + ' not Valid PACKET_HISTORY_DATA StreamVerifyAck.');
-                reject();
             }
         });
     }
@@ -97,6 +115,12 @@ class REDEYE_Packet {
                     break;
                 case REDEYE_Packet_Cmd_1.Cmd.PACKET_NEW_DATA:
                     this.cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_NEW_DATA;
+                    break;
+                case REDEYE_Packet_Cmd_1.Cmd.PACKET_SYNC_TIME:
+                    this.cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_SYNC_TIME;
+                    break;
+                case REDEYE_Packet_Cmd_1.Cmd.PACKET_OTA_INFO:
+                    this.cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_OTA_INFO;
                     break;
                 case REDEYE_Packet_Cmd_1.Cmd.PACKET_RAW_DATA:
                     this.cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_RAW_DATA;
