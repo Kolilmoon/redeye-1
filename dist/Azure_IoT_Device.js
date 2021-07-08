@@ -267,12 +267,12 @@ class Azure_IoT_Device {
                 break;
             }
             case commandSetStartScanning: {
-                let isConnectResult = await commandSetStartScanningHandler();
-                await sendCommandResponse(request, response, 200, isConnectResult.toString());
+                await commandSetStartScanningHandler();
+                await sendCommandResponse(request, response, 200, null);
                 break;
             }
             case commandNameReboot: {
-                await sendCommandResponse(request, response, 200, 'true');
+                await sendCommandResponse(request, response, 200, null);
                 await reboot();
                 break;
             }

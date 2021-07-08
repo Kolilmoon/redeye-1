@@ -13,7 +13,7 @@ const REDEYE_Packet_Cmd_1 = require("./REDEYE_Packet_Cmd");
 const Azure_IoT_Device_1 = require("./Azure_IoT_Device");
 const tcp_tracker = new pcap.TCPTracker();
 const pcap_session = pcap.createSession('wlan0', { filter: "ip proto \\tcp" });
-const testResultspectrum = 'testResultspectrum';
+const testResultSpectrum = 'testResultSpectrum';
 const testResult = 'testResult';
 class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
     constructor(config) {
@@ -22,6 +22,8 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
         this.packet_verify = new Uint8Array();
         this.mStream_Size = 0;
         this.mData_Chunks = 0;
+        this.resultIndex = 0;
+        this.spectrumIndex = 0;
         this.mCurrent_cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_UNKNOWN;
     }
     initPCAP() {
@@ -45,7 +47,7 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
             let currentSavedLength = 0;
             let currentSavedChunk = 0;
             socket.on('data', data => {
-                // this.isConnected = true;
+                this.isConnected = true;
                 console.log('-----------------------------------------recv data-----------------------------------------');
                 let packet = new REDEYE_Packet_1.REDEYE_Packet(data, this.mCurrent_cmd);
                 if ((this.mCurrent_cmd == REDEYE_Packet_Cmd_1.Cmd.ARRIVAL_HISTORY_DATA || this.mCurrent_cmd == REDEYE_Packet_Cmd_1.Cmd.ARRIVAL_RAW_DATA) && received.length == 0) {
@@ -77,6 +79,11 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
                 }
                 if (packet.cmd == REDEYE_Packet_Cmd_1.Cmd.PACKET_HELLO_ACK) {
                     this.mCurrent_cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_HISTORY_DATA;
+                    this.packet_byte_array = new Uint8Array();
+                    this.packet_verify = new Uint8Array();
+                    this.mStream_Size = 0;
+                    this.mData_Chunks = 0;
+                    this.mCurrent_cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_UNKNOWN;
                     this.handleMessage(packet);
                 }
                 else if (packet.cmd == REDEYE_Packet_Cmd_1.Cmd.PACKET_HISTORY_DATA) {
@@ -93,6 +100,11 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
             });
             socket.on('end', function () {
                 this.isConnected = false;
+                this.packet_byte_array = new Uint8Array();
+                this.packet_verify = new Uint8Array();
+                this.mStream_Size = 0;
+                this.mData_Chunks = 0;
+                this.mCurrent_cmd = REDEYE_Packet_Cmd_1.Cmd.PACKET_UNKNOWN;
                 console.log(moment().format() + ' socket從客戶端被關閉了');
             });
         });
@@ -192,7 +204,9 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
                 this.packet_New_Data.create_datetime = moment().format().replace(/T/, ' ').replace(/\..+/, '');
                 console.log(JSON.stringify(this.packet_New_Data));
                 this.lastTestResult = value;
-                this.sendTelemetry(this.azureClient, value.toString(), 0, testResult).catch((err) => console.log('error ', err.toString()));
+                let message = JSON.stringify({ testResult: value });
+                this.sendTelemetry(this.azureClient, message, this.resultIndex).catch((err) => console.log('error ', err.toString()));
+                this.resultIndex += 1;
                 this.sender.write(this.packet_byte_array);
                 break;
             case REDEYE_Packet_Cmd_1.Cmd.PACKET_RAW_DATA:
@@ -215,21 +229,23 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
                         blank = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i + 320, 16 + 8 * i + 8 + 320)).readDoubleLE(0).toFixed(6));
                         sample = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i + 640, 16 + 8 * i + 8 + 640)).readDoubleLE(0).toFixed(6));
                         rawData.wavelength = wavelength;
-                        rawData.blank = blank;
+                        rawData.blank = 0;
                         rawData.sample = sample;
                         rawList.push(rawData);
                     }
                     // console.log(JSON.stringify(rawList));
                     try {
                         this.packet_New_Data.spectrum = rawList;
-                        // this.lastTestResultSpectrum = JSON.stringify(this.packet_New_Data);
+                        this.lastTestResultSpectrum = JSON.stringify(this.packet_New_Data);
                         console.log(JSON.stringify(this.packet_New_Data));
-                        let message = new azure_iot_device_1.Message(JSON.stringify(this.packet_New_Data));
-                        let index = 0;
-                        rawList.forEach(element => {
-                            this.sendTelemetry(this.azureClient, JSON.stringify(element), index, testResultspectrum).catch((err) => console.log('error ', err.toString()));
-                            index = index + 1;
-                        });
+                        let message = JSON.stringify({ testResultSpectrum: rawList });
+                        this.sendTelemetry(this.azureClient, message, this.spectrumIndex).catch((err) => console.log('error ', err.toString()));
+                        this.spectrumIndex += 1;
+                        // let index = 0;
+                        // rawList.forEach(element => {
+                        //   this.sendTelemetry(this.azureClient, JSON.stringify(element), index, testResultspectrum).catch((err) => console.log('error ', err.toString()));
+                        //   index = index + 1;
+                        // })
                     }
                     catch (err) {
                         console.log(err);
