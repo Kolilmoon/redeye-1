@@ -10,9 +10,7 @@
 # Purpose
 
 This project contains a sample for working with Azure IoT Hub Device Provisioning Service:
-* A building scenario sample written in Node.js with Typescript. The sample can be used to set up redeye device through gateway to Azure IoT Hub with  Azure IoT Hub Device Provisioning Service.
-* The designed Flow and architecture is showed as following:
-
+* The sample can be used to set up redeye device through gateway to Azure IoT Hub with  Azure IoT Hub Device Provisioning Service.
 
 # Cloud service used
 
