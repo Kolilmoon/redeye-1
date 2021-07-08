@@ -1,4 +1,4 @@
-# Azure IoT Plug and Play gateway for Redeye-V1-Plus
+# Azure IoT Plug and Play gateway for Redeye-1-Plus
 
 # Contents
 
