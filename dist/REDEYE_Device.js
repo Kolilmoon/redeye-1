@@ -225,15 +225,35 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
                         console.log("round " + i.toString() + ",wavelength raw: " + Buffer.from(packet.packet_array.slice(16 + 8 * i, 16 + 8 * i + 8)).toString('hex'));
                         console.log("round " + i.toString() + ",blank      raw: " + Buffer.from(packet.packet_array.slice(16 + 8 * i + 320, 16 + 8 * i + 8 + 320)).toString('hex'));
                         console.log("round " + i.toString() + ",sample     raw: " + Buffer.from(packet.packet_array.slice(16 + 8 * i + 640, 16 + 8 * i + 8 + 640)).toString('hex'));
-                        wavelength = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i, 16 + 8 * i + 8)).readDoubleLE(0).toFixed(6));
-                        blank = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i + 320, 16 + 8 * i + 8 + 320)).readDoubleLE(0).toFixed(6));
-                        sample = parseFloat(Buffer.from(packet.packet_array.slice(16 + 8 * i + 640, 16 + 8 * i + 8 + 640)).readDoubleLE(0).toFixed(6));
+                        let wavelengthdata = packet.packet_array.slice(16 + 8 * i, 16 + 8 * i + 8);
+                        let blankdata = packet.packet_array.slice(16 + 8 * i + 320, 16 + 8 * i + 8 + 320);
+                        let sampledata = packet.packet_array.slice(16 + 8 * i + 640, 16 + 8 * i + 8 + 640);
+                        // Create a buffer
+                        let wavelengthBuf = new ArrayBuffer(8);
+                        let blankBuf = new ArrayBuffer(8);
+                        let sampleBuf = new ArrayBuffer(8);
+                        // Create a data view of it
+                        let waveview = new DataView(wavelengthBuf);
+                        let blankview = new DataView(blankBuf);
+                        let sampleview = new DataView(sampleBuf);
+                        // set bytes
+                        wavelengthdata.forEach(function (b, i) {
+                            waveview.setUint8(i, b);
+                        });
+                        blankdata.forEach(function (b, i) {
+                            blankview.setUint8(i, b);
+                        });
+                        sampledata.forEach(function (b, i) {
+                            sampleview.setUint8(i, b);
+                        });
+                        wavelength = waveview.getFloat64(0, true);
+                        blank = blankview.getFloat64(0, true);
+                        sample = sampleview.getFloat64(0, true);
                         rawData.wavelength = wavelength;
-                        rawData.blank = 0;
+                        rawData.blank = isNaN(blank) ? 0 : blank;
                         rawData.sample = sample;
                         rawList.push(rawData);
                     }
-                    // console.log(JSON.stringify(rawList));
                     try {
                         this.packet_New_Data.spectrum = rawList;
                         this.lastTestResultSpectrum = JSON.stringify(this.packet_New_Data);
@@ -241,11 +261,6 @@ class REDEYE_Device extends Azure_IoT_Device_1.Azure_IoT_Device {
                         let message = JSON.stringify({ testResultSpectrum: rawList });
                         this.sendTelemetry(this.azureClient, message, this.spectrumIndex).catch((err) => console.log('error ', err.toString()));
                         this.spectrumIndex += 1;
-                        // let index = 0;
-                        // rawList.forEach(element => {
-                        //   this.sendTelemetry(this.azureClient, JSON.stringify(element), index, testResultspectrum).catch((err) => console.log('error ', err.toString()));
-                        //   index = index + 1;
-                        // })
                     }
                     catch (err) {
                         console.log(err);
