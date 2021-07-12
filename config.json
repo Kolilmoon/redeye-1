@@ -1,0 +1,10 @@
+{
+    "IOTHUB_DEVICE_SECURITY_TYPE": "DPS",
+    "IOTHUB_DEVICE_DPS_ID_SCOPE": "",
+    "IOTHUB_DEVICE_DPS_DEVICE_ID": "",
+    "IOTHUB_DEVICE_DPS_DEVICE_KEY": "",
+    "IOTHUB_DEVICE_DPS_ENDPOINT": "global.azure-devices-provisioning.net",
+    "IOTHUB_DEVICE_CONNECTION_STRING": "",
+    "IOTHUB_DEVICE_ID": "redeye-1-plus-01",
+    "REDEYE_DEVICE_SSID" : "REDEYE-"
+}
