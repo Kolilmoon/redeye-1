@@ -10,11 +10,17 @@
   "license": "ISC",
   "dependencies": {
     "@types/node": "*",
+    "azure-iot-common": "^1.12.9",
     "azure-iot-device": "^1.17.3",
     "azure-iot-device-amqp": "^1.13.3",
+    "azure-iot-device-mqtt": "^1.15.4",
+    "azure-iot-provisioning-device": "^1.8.8",
+    "azure-iot-provisioning-device-mqtt": "^1.7.8",
+    "azure-iot-security-symmetric-key": "^1.7.8",
     "node-wifi": "^2.0.14",
     "packet": "^0.0.7",
     "pcap": "^3.1.0",
-    "systeminformation": "^5.7.4"
+    "systeminformation": "^5.7.4",
+    "moment": "^2.29.1"
   }
 }
